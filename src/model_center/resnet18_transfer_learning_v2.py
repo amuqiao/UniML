@@ -33,20 +33,24 @@ class FlowerConfig:
         
         # 类别数量
         self.num_classes = 102
-        # 批量大小
-        self.batch_size = 32
-        # 学习率
-        self.lr = 0.001
-        # 训练轮数
-        self.num_epochs = 10
+        # 批量大小 - 增加到64以更好地利用GPU内存并提高训练稳定性
+        self.batch_size = 64
+        # 学习率 - 为特征提取设置合适的学习率
+        self.lr = 0.001  # 特征提取的学习率
+        self.fine_tuning_lr = 0.0001  # 微调的学习率
+        # 训练轮数 - 增加到30以获得更好的模型性能
+        self.num_epochs = 30
         # 设备选择
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         # 预训练模型名称
         self.model_name = "resnet18"
         # 模型类型 (feature_extraction 或 fine_tuning)
-        self.model_type = "feature_extraction"
+        self.model_type = "fine_tuning"  # 默认为微调以获得更好的性能
         # 解冻层数（仅用于fine_tuning）
-        self.unfreeze_layers = 2
+        self.unfreeze_layers = 2  # 解冻最后两层卷积层
+        # 学习率调度器参数
+        self.scheduler_step_size = 10  # 每10个epoch调整一次学习率
+        self.scheduler_gamma = 0.1  # 学习率衰减因子
 
 # 数据加载器
 @data_loader_registry.register_data_loader("flower_classification", "flower_dataloader")
@@ -198,11 +202,21 @@ class TransferLearningTrainer(LightBaseTrainerTemplate):
             if param.requires_grad:
                 params_to_update.append(param)
         
-        self.optimizer = optim.SGD(params_to_update, lr=self.config.lr, momentum=0.9)
+        # 根据模型类型选择合适的学习率
+        if self.config.model_type == "fine_tuning":
+            learning_rate = self.config.fine_tuning_lr
+        else:
+            learning_rate = self.config.lr
+        
+        self.optimizer = optim.SGD(params_to_update, lr=learning_rate, momentum=0.9)
     
     def _build_scheduler(self) -> None:
         """构建学习率调度器"""
-        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=7, gamma=0.1)
+        self.scheduler = optim.lr_scheduler.StepLR(
+            self.optimizer, 
+            step_size=self.config.scheduler_step_size, 
+            gamma=self.config.scheduler_gamma
+        )
     
     def _build_loss_function(self) -> None:
         """构建损失函数"""
