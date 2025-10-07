@@ -50,9 +50,11 @@ class ComponentRegistry(AbstractRegistry):
         """实际执行注册的内部方法"""
         key = (namespace, type_, name)
         if key in self._registry:
-            raise ValueError(f"组件已存在: namespace={namespace}, type={type_}, name={name}")
+            # 组件已存在时不再重复注册和打印信息
+            return
         self._registry[key] = component
-        print(f"已注册组件: namespace={namespace}, type={type_}, name={name}")
+        # 可选：如需保留注册信息，可以添加日志级别控制或使用日志库而非直接打印到控制台
+        # print(f"已注册组件: namespace={namespace}, type={type_}, name={name}")
     
     def get(self, namespace: str, type_: str, name: str) -> Any:
         key = (namespace, type_, name)
@@ -102,12 +104,12 @@ class ModelRegistry(ComponentRegistry):
         if model is None:
             def decorator(cls: Any) -> Any:
                 self.register(namespace, "model", full_name, cls)
-                print(f"模型类型: {model_type}")
+                # 移除重复的打印语句
                 return cls
             return decorator
         else:
             self.register(namespace, "model", full_name, model)
-            print(f"模型类型: {model_type}")
+            # 移除重复的打印语句
             return model
     
     def get_model(self, namespace: str, name: str, model_type: str) -> Any:
